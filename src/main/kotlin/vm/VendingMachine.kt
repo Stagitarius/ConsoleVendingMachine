@@ -1,7 +1,10 @@
-package vm
+interface MoneyCalculator<M> {
+    fun zero(): M
+    fun add(m1: M, m2: M): M
+    fun enough(expected: M, actual: M): Boolean
+}
 
 interface Product<M> {
-    var availableCount: Int
     val price: M
 }
 
@@ -9,55 +12,45 @@ interface Coin<M> {
     val value: M
 }
 
-sealed interface VmInput<M, P : Product<M>, C : Coin<M>>
+sealed interface State<M, P : Product<M>>
+class Idle<M, P : Product<M>> : State<M, P>
+class Paying<M, P : Product<M>>(var selectedProduct: P, var sum: M) : State<M, P>
 
-class SelectProduct<M, P : Product<M>, C : Coin<M>>(
-    val product: P
-) : VmInput<M, P, C>
-
-class InsertCoin<M, P : Product<M>, C : Coin<M>>(
-    val coin: C
-) : VmInput<M, P, C>
-
-sealed interface VmOutput<M, P : Product<M>, C : Coin<M>>
-
-class DisplayProductIsOut<M, P : Product<M>, C : Coin<M>>(
-    val product: Product<M>
-) : VmOutput<M, P, C>
-
-class DisplayProductNotSelected<M, P : Product<M>, C : Coin<M>>
-    : VmOutput<M, P, C>
-
-class EjectCoin<M, P : Product<M>, C : Coin<M>>(
-    val coin: C
-) : VmOutput<M, P, C>
-
-class EjectProduct<M, P : Product<M>, C : Coin<M>>(
-    val product: P
-) : VmOutput<M, P, C>
-
-
-interface MoneyCalculator<M> {
-    fun zero(): M
-    fun add(m1: M, m2: M): M
-    fun isLessThanOrEqual(m1: M, m2: M): Boolean
-}
-
-private sealed interface VmState<M, P : Product<M>, C : Coin<M>>
-
-private class Idle<M, P : Product<M>, C : Coin<M>>
-    : VmState<M, P, C>
-
-private class Paying<M, P : Product<M>, C : Coin<M>>(
-    val product: P,
-    var sum: M,
-) : VmState<M, P, C>
-
-class VendingMachineFsm<M, P : Product<M>, C : Coin<M>>(
-    private val calc: MoneyCalculator<M>,
+abstract class AbstractVendingMachine<M, P : Product<M>, C : Coin<M>>(
+    private val calculator: MoneyCalculator<M>,
+    private val products: MutableMap<P, Int>
 ) {
-    private var state: VmState<M, P, C> = Idle()
+    private var state: State<M, P> = Idle()
 
-    fun act(input: VmInput<M, P, C>): List<VmOutput<M, P, C>> =
-        TODO()
+    abstract fun onDisplayProductIsOut(product: P)
+    abstract fun onDisplayProductNotSelected()
+    abstract fun onEjectCoin(coin: C)
+    abstract fun onEjectProduct(product: P)
+
+    fun insertCoin(c: C) {
+        when (val s = state) {
+            is Paying -> {
+
+                s.sum = calculator.add(s.sum, c.value)
+
+                if (calculator.enough(s.selectedProduct.price, s.sum)) {
+                    onEjectProduct(s.selectedProduct)
+                    products[s.selectedProduct] = products[s.selectedProduct]!! - 1
+                }
+            }
+
+            is Idle -> {
+                onDisplayProductNotSelected()
+                onEjectCoin(c)
+            }
+        }
+    }
+
+    fun selectProduct(p: P) {
+        if (state is Idle && (products[p] ?: 0) > 0) {
+            state = Paying(p, calculator.zero())
+        } else {
+            onDisplayProductIsOut(p)
+        }
+    }
 }
