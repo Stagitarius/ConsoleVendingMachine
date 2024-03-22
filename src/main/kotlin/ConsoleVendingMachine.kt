@@ -1,0 +1,3 @@
+class ConsoleVendingMachine {
+    // TODO
+}
