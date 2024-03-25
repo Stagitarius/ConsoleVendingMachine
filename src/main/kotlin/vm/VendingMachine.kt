@@ -30,12 +30,11 @@ abstract class AbstractVendingMachine<M, P : Product<M>, C : Coin<M>>(
     fun insertCoin(c: C) {
         when (val s = state) {
             is Paying -> {
-
                 s.sum = calculator.add(s.sum, c.value)
-
                 if (calculator.enough(s.selectedProduct.price, s.sum)) {
                     onEjectProduct(s.selectedProduct)
                     products[s.selectedProduct] = products[s.selectedProduct]!! - 1
+                    state = Idle()
                 }
             }
 
@@ -43,6 +42,7 @@ abstract class AbstractVendingMachine<M, P : Product<M>, C : Coin<M>>(
                 onDisplayProductNotSelected()
                 onEjectCoin(c)
             }
+            else -> {}
         }
     }
 
